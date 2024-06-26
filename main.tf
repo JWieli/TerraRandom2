@@ -10,6 +10,7 @@ terraform {
 provider "azurerm" {
   features {}
 }
+
 #var
 locals {
   resourcegroup = "Test1"
@@ -17,7 +18,7 @@ locals {
   vnet          = "vnetA"
   subnet        = "subnetA"
   vm            = "vm1"
-  keyvault      = "kv1"
+  keyvault      = "kv2"
 }
 
 resource "azurerm_resource_group" "rg" {
@@ -54,11 +55,11 @@ resource "azurerm_network_interface" "nicA" {
   }
 }
 
-#kv i sekret
+# #kv i sekret
 
 data "azurerm_client_config" "current" {}
 
-resource "azurerm_key_vault" "kv" {
+resource "azurerm_key_vault" "kv2" {
   name                        = local.keyvault
   location                    = local.location
   resource_group_name         = local.resourcegroup
@@ -76,7 +77,7 @@ resource "azurerm_user_assigned_identity" "MID" {
 }
 
   resource "azurerm_key_vault_access_policy" "IAMKV" {
-    key_vault_id = azurerm_key_vault.kv.id
+    key_vault_id = azurerm_key_vault.kv2.id
     tenant_id = data.azurerm_client_config.current.tenant_id
     object_id = azurerm_user_assigned_identity.MID.principal_id
 
@@ -94,7 +95,13 @@ resource "random_password" "password" {
 resource "azurerm_key_vault_secret" "vmpassword" {
   name         = "vmPassword"
   value        = random_password.password.result
-  key_vault_id = azurerm_key_vault.kv.id
+  key_vault_id = azurerm_key_vault.kv2.id
+  }
+
+  resource "azurerm_key_vault_secret" "vmlogin" {
+  name         = "vmlogin"
+  value        = "julka123"
+  key_vault_id = azurerm_key_vault.kv2.id
   }
 
   resource "azurerm_windows_virtual_machine" "vm" {
@@ -102,7 +109,7 @@ resource "azurerm_key_vault_secret" "vmpassword" {
   resource_group_name = local.resourcegroup
   location            = local.location
   size                = "Standard_F2"
-  admin_username      = "adminuser"
+  admin_username      = azurerm_key_vault_secret.vmlogin.value
   admin_password      = azurerm_key_vault_secret.vmpassword.value
   network_interface_ids = [
     azurerm_network_interface.nicA.id,
