@@ -54,30 +54,6 @@ resource "azurerm_network_interface" "nicA" {
   }
 }
 
-resource "azurerm_windows_virtual_machine" "vm" {
-  name                = local.vm
-  resource_group_name = local.resourcegroup
-  location            = local.location
-  size                = "Standard_F2"
-  admin_username      = "adminuser"
-  admin_password      = "julka123123!"
-  network_interface_ids = [
-    azurerm_network_interface.nicA.id,
-  ]
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-
-  source_image_reference {
-    publisher = "MicrosoftWindowsServer"
-    offer     = "WindowsServer"
-    sku       = "2016-Datacenter"
-    version   = "latest"
-  }
-}
-
 #kv i sekret
 
 data "azurerm_client_config" "current" {}
@@ -115,8 +91,32 @@ resource "random_password" "password" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
-# resource "azurerm_key_vault_secret" "vm_password" {
-#   name         = "vmPassword"
-#   value        = random_password.password.result
-#   key_vault_id = azurerm_key_vault.example.id
-# }
+resource "azurerm_key_vault_secret" "vmpassword" {
+  name         = "vmPassword"
+  value        = random_password.password.result
+  key_vault_id = azurerm_key_vault.kv.id
+  }
+
+  resource "azurerm_windows_virtual_machine" "vm" {
+  name                = local.vm
+  resource_group_name = local.resourcegroup
+  location            = local.location
+  size                = "Standard_F2"
+  admin_username      = "adminuser"
+  admin_password      = azurerm_key_vault_secret.vmpassword.value
+  network_interface_ids = [
+    azurerm_network_interface.nicA.id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "MicrosoftWindowsServer"
+    offer     = "WindowsServer"
+    sku       = "2016-Datacenter"
+    version   = "latest"
+  }
+}
