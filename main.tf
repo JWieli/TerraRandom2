@@ -19,6 +19,7 @@ locals {
   subnet        = "subnetA"
   vm            = "vm1"
   keyvault      = "xxx4"
+  nsg = "nsg1"
 }
 
 resource "azurerm_resource_group" "rg" {
@@ -89,11 +90,20 @@ resource "azurerm_user_assigned_identity" "MID" {
 resource "azurerm_key_vault_access_policy" "IAMKV" {
   key_vault_id = azurerm_key_vault.kv2.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_user_assigned_identity.MID.principal_id
-  depends_on   = [azurerm_user_assigned_identity.MID]
+  object_id    = data.azurerm_client_config.current.object_id
+  # object_id    = azurerm_user_assigned_identity.MID.principal_id
+  # depends_on   = [azurerm_user_assigned_identity.MID]
 
-  secret_permissions = [
+   secret_permissions = [
     "Get", "List", "Delete", "Set"
+  ]
+
+  key_permissions = [
+    "Get", "List", "Update", "Create", "Import", "Delete", "Recover", "Backup", "Restore"
+  ]
+
+  certificate_permissions = [
+    "Get", "List", "Update", "Create", "Import", "Delete", "Recover", "Backup", "Restore"
   ]
 }
 
@@ -107,14 +117,18 @@ resource "azurerm_key_vault_secret" "vmpassword" {
   name         = "vmPassword"
   value        = random_password.password.result
   key_vault_id = azurerm_key_vault.kv2.id
-  depends_on   = [azurerm_key_vault.kv2]
+  depends_on   = [
+  azurerm_key_vault.kv2,
+  azurerm_key_vault_access_policy.IAMKV]
 }
 
 resource "azurerm_key_vault_secret" "vmlogin" {
   name         = "vmlogin"
   value        = "julka123"
   key_vault_id = azurerm_key_vault.kv2.id
-  depends_on   = [azurerm_key_vault.kv2]
+  depends_on   = [
+  azurerm_key_vault.kv2,
+  azurerm_key_vault_access_policy.IAMKV]
 }
 
 resource "azurerm_windows_virtual_machine" "vm" {
@@ -144,4 +158,25 @@ resource "azurerm_windows_virtual_machine" "vm" {
     sku       = "2016-Datacenter"
     version   = "latest"
   }
+}
+
+resource "azurerm_network_security_group" "nsg" {
+  name                = local.nsg
+  location            = local.location
+  resource_group_name = local.resourcegroup
+}
+
+resource "azurerm_network_security_rule" "allow_rdp" {
+  name                        = "Allow-RDP"
+  priority                    = 1000
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "3389"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  resource_group_name         = local.resourcegroup
+  network_security_group_name = local.nsg
+  depends_on = [azurerm_network_security_group.nsg]
 }
